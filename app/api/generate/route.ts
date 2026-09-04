@@ -49,9 +49,9 @@ export async function POST(req: Request) {
           },
           setAll(cookiesToSet) {
             try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
             } catch {}
           }
         }
@@ -88,48 +88,67 @@ export async function POST(req: Request) {
       );
     }
 
-const { data: remainingCredits, error: creditError } =
-  await supabase.rpc("use_credit", {
-    user_id: user.id
-  });
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
 
-if (creditError) {
-  console.error("Credit error:", creditError);
+    const input = Object.entries(values)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join("\n");
 
-  return NextResponse.json(
-    { error: "Gagal memproses kredit." },
-    { status: 500 }
-  );
-}
+    const response = await client.responses.create({
+      model: process.env.OPENAI_MODEL || "gpt-5.6-luna",
 
-if (remainingCredits === -1) {
-  return NextResponse.json(
-    {
-      error:
-        "Kredit kamu sudah habis. Silakan upgrade untuk mendapatkan kredit tambahan."
-    },
-    { status: 403 }
-  );
-}
+      instructions:
+        "Kamu adalah GilangAI, asisten AI profesional untuk bisnis, UMKM, marketer, dan kreator Indonesia. Jawab dalam Bahasa Indonesia yang natural, praktis, rapi, profesional, dan siap digunakan. Jangan menjelaskan proses berpikirmu.",
 
-const newCredits = remainingCredits;
+      input: `${prompts[generator]}
 
-    if (updateError) {
-      console.error("Credit update error:", updateError);
+DATA PENGGUNA:
+${input}
+
+Berikan hasil final yang rapi dan langsung bisa digunakan.`
+    });
+
+    const { data: remainingCredits, error: creditError } =
+      await supabase.rpc("use_credit", {
+        user_id: user.id
+      });
+
+    if (creditError) {
+      console.error("Credit error:", creditError);
 
       return NextResponse.json(
-        { error: "Hasil berhasil dibuat tetapi kredit gagal diperbarui." },
+        { error: "Gagal memproses kredit." },
         { status: 500 }
       );
     }
 
-    await supabase.from("generation_history").insert({
-  user_id: user.id,
-  generator: generator,
-  prompt: String(values.prompt || ""),
-  result: response.output_text
-});
-    
+    const newCredits = Number(remainingCredits);
+
+    if (newCredits < 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Kredit kamu sudah habis. Silakan upgrade untuk mendapatkan kredit tambahan."
+        },
+        { status: 403 }
+      );
+    }
+
+    const { error: historyError } = await supabase
+      .from("generation_history")
+      .insert({
+        user_id: user.id,
+        generator: generator,
+        prompt: String(values.prompt || ""),
+        result: response.output_text
+      });
+
+    if (historyError) {
+      console.error("History error:", historyError);
+    }
+
     return NextResponse.json({
       result: response.output_text,
       credits: newCredits
