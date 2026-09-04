@@ -3,66 +3,16 @@
 import { useState } from "react";
 
 const tools = [
-  {
-    id: "caption",
-    title: "Caption Instagram",
-    icon: "📸",
-    description: "Buat caption Instagram yang menarik"
-  },
-  {
-    id: "ideas",
-    title: "Ide Konten",
-    icon: "💡",
-    description: "Temukan ide konten kreatif"
-  },
-  {
-    id: "hook",
-    title: "Hook Viral",
-    icon: "🔥",
-    description: "Buat hook yang bikin berhenti scrolling"
-  },
-  {
-    id: "product_title",
-    title: "Judul Produk",
-    icon: "🛍️",
-    description: "Judul produk yang menarik"
-  },
-  {
-    id: "product_description",
-    title: "Deskripsi Produk",
-    icon: "📝",
-    description: "Deskripsi produk yang meyakinkan"
-  },
-  {
-    id: "tiktok_script",
-    title: "Script TikTok",
-    icon: "🎵",
-    description: "Script video TikTok siap pakai"
-  },
-  {
-    id: "facebook_ads",
-    title: "Iklan Facebook",
-    icon: "📣",
-    description: "Copywriting iklan Facebook"
-  },
-  {
-    id: "whatsapp_promo",
-    title: "Promosi WhatsApp",
-    icon: "💬",
-    description: "Teks promosi WhatsApp"
-  },
-  {
-    id: "bio",
-    title: "Bio Instagram",
-    icon: "👤",
-    description: "Bio Instagram profesional"
-  },
-  {
-    id: "brand",
-    title: "Nama Brand",
-    icon: "✨",
-    description: "Cari nama brand yang unik"
-  }
+  ["caption", "📸", "Caption Instagram"],
+  ["ideas", "💡", "Ide Konten"],
+  ["hook", "🔥", "Hook Viral"],
+  ["product_title", "🛍️", "Judul Produk"],
+  ["product_description", "📝", "Deskripsi Produk"],
+  ["tiktok_script", "🎵", "Script TikTok"],
+  ["facebook_ads", "📣", "Iklan Facebook"],
+  ["whatsapp_promo", "💬", "Promosi WhatsApp"],
+  ["bio", "👤", "Bio Instagram"],
+  ["brand", "✨", "Nama Brand"]
 ];
 
 export default function Home() {
@@ -71,7 +21,7 @@ export default function Home() {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const currentTool = tools[selected];
+  const tool = tools[selected];
 
   async function generate() {
     if (!prompt.trim()) {
@@ -89,7 +39,7 @@ export default function Home() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          generator: currentTool.id,
+          generator: tool[0],
           values: {
             prompt: prompt
           }
@@ -106,11 +56,15 @@ export default function Home() {
       setResult(data.result || "Tidak ada hasil dari AI.");
     } catch (error) {
       console.error(error);
-      setResult(
-        "❌ Tidak dapat terhubung ke AI. Silakan coba lagi."
-      );
+      setResult("❌ Tidak dapat terhubung ke AI. Silakan coba lagi.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function copyResult() {
+    if (result) {
+      await navigator.clipboard.writeText(result);
     }
   }
 
@@ -120,82 +74,225 @@ export default function Home() {
         minHeight: "100vh",
         background: "#f7f7fb",
         color: "#172033",
-        padding: "24px"
+        padding: "20px"
       }}
     >
-      <div
-        style={{
-          maxWidth: "1100px",
-          margin: "0 auto"
-        }}
-      >
-        {/* HEADER */}
+      <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+
         <header
           style={{
-            background: "white",
-            borderRadius: "20px",
-            padding: "24px",
-            marginBottom: "24px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.06)"
+            background: "#fff",
+            borderRadius: 18,
+            padding: 22,
+            marginBottom: 20,
+            boxShadow: "0 4px 18px rgba(0,0,0,.06)"
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "20px",
-              flexWrap: "wrap"
-            }}
-          >
-            <div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: "32px"
-                }}
-              >
-                🤖 GilangAI
-              </h1>
+          <h1 style={{ margin: 0, fontSize: 32 }}>
+            🤖 GilangAI
+          </h1>
 
-              <p
-                style={{
-                  margin: "8px 0 0",
-                  color: "#64748b"
-                }}
-              >
-                AI Generator untuk bisnis, UMKM & kreator
-              </p>
-            </div>
-
-            <button
-              style={{
-                border: 0,
-                borderRadius: "12px",
-                padding: "12px 18px",
-                background: "#6d4aff",
-                color: "white",
-                fontWeight: "bold"
-              }}
-            >
-              👑 Upgrade
-            </button>
-          </div>
+          <p style={{ color: "#64748b", marginBottom: 0 }}>
+            AI Generator untuk bisnis, UMKM & kreator
+          </p>
         </header>
 
-        {/* WELCOME */}
         <section
           style={{
-            background:
-              "linear-gradient(135deg, #eee9ff, #ffffff)",
-            borderRadius: "20px",
-            padding: "28px",
-            marginBottom: "24px"
+            background: "linear-gradient(135deg,#eee9ff,#fff)",
+            borderRadius: 18,
+            padding: 24,
+            marginBottom: 20
           }}
         >
           <h2 style={{ marginTop: 0 }}>
             Selamat datang kembali! 👋
           </h2>
 
-          <p style={{ color: "#64748b" }}>
-            Pilih AI Tools dan
+          <p style={{ color: "#64748b", marginBottom: 0 }}>
+            Pilih AI Tools dan buat konten berkualitas dalam hitungan detik.
+          </p>
+        </section>
+
+        <h2>AI Tools</h2>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit,minmax(170px,1fr))",
+            gap: 12
+          }}
+        >
+          {tools.map((item, index) => (
+            <button
+              key={item[0]}
+              onClick={() => {
+                setSelected(index);
+                setResult("");
+              }}
+              style={{
+                padding: 16,
+                textAlign: "left",
+                borderRadius: 14,
+                border:
+                  selected === index
+                    ? "2px solid #6d4aff"
+                    : "1px solid #e2e8f0",
+                background:
+                  selected === index
+                    ? "#f1edff"
+                    : "#fff"
+              }}
+            >
+              <div style={{ fontSize: 26 }}>
+                {item[1]}
+              </div>
+
+              <strong>{item[2]}</strong>
+            </button>
+          ))}
+        </div>
+
+        <section
+          style={{
+            background: "#fff",
+            borderRadius: 18,
+            padding: 22,
+            marginTop: 20,
+            boxShadow: "0 4px 18px rgba(0,0,0,.06)"
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>
+            {tool[1]} {tool[2]}
+          </h2>
+
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder={`Contoh: buat ${String(
+              tool[2]
+            ).toLowerCase()} untuk bisnis ayam geprek`}
+            rows={5}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: 14,
+              borderRadius: 12,
+              border: "1px solid #cbd5e1",
+              resize: "vertical"
+            }}
+          />
+
+          <button
+            onClick={generate}
+            disabled={loading}
+            style={{
+              marginTop: 12,
+              padding: "13px 20px",
+              border: 0,
+              borderRadius: 10,
+              background:
+                loading ? "#94a3b8" : "#6d4aff",
+              color: "#fff",
+              fontWeight: "bold"
+            }}
+          >
+            {loading
+              ? "⏳ Membuat..."
+              : "✨ Generate"}
+          </button>
+        </section>
+
+        {result && (
+          <section
+            style={{
+              background: "#fff",
+              borderRadius: 18,
+              padding: 22,
+              marginTop: 20,
+              boxShadow: "0 4px 18px rgba(0,0,0,.06)"
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 10
+              }}
+            >
+              <h2 style={{ marginTop: 0 }}>
+                Hasil
+              </h2>
+
+              <button
+                onClick={copyResult}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 9,
+                  border: "1px solid #cbd5e1",
+                  background: "#fff"
+                }}
+              >
+                📋 Copy
+              </button>
+            </div>
+
+            <div
+              style={{
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.7
+              }}
+            >
+              {result}
+            </div>
+          </section>
+        )}
+
+        <section
+          style={{
+            marginTop: 20,
+            padding: 24,
+            borderRadius: 18,
+            background:
+              "linear-gradient(135deg,#6d4aff,#9b7cff)",
+            color: "#fff"
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>
+            👑 GilangAI Premium
+          </h2>
+
+          <p>
+            Akses fitur AI lebih lengkap dan produktivitas lebih tinggi.
+          </p>
+
+          <button
+            style={{
+              padding: "11px 18px",
+              border: 0,
+              borderRadius: 10,
+              background: "#fff",
+              color: "#6d4aff",
+              fontWeight: "bold"
+            }}
+          >
+            Upgrade
+          </button>
+        </section>
+
+        <footer
+          style={{
+            textAlign: "center",
+            padding: "28px 0",
+            color: "#64748b"
+          }}
+        >
+          © 2026 GilangAI Generator
+        </footer>
+
+      </div>
+    </main>
+  );
+}
