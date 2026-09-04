@@ -153,6 +153,13 @@ Berikan hasil final yang rapi dan langsung bisa digunakan.`
       );
     }
 
+    await supabase.from("generation_history").insert({
+  user_id: user.id,
+  generator: generator,
+  prompt: String(values.prompt || ""),
+  result: response.output_text
+});
+    
     return NextResponse.json({
       result: response.output_text,
       credits: newCredits
