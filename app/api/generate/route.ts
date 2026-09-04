@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 const prompts: Record<string, string> = {
   caption:
@@ -35,6 +37,38 @@ const prompts: Record<string, string> = {
 
 export async function POST(req: Request) {
   try {
+    const cookieStore = await cookies();
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              );
+            } catch {}
+          }
+        }
+      }
+    );
+
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Silakan login terlebih dahulu." },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
 
     const generator = String(body.generator || "");
@@ -51,6 +85,33 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "OPENAI_API_KEY belum diatur di Vercel." },
         { status: 500 }
+      );
+    }
+
+    let { data: profile, error: profileError } =
+      await supabase
+        .from("profiles")
+        .select("credits")
+        .eq("id", user.id)
+        .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json(
+        {
+          error:
+            "Profil pengguna belum tersedia. Silakan logout lalu daftar kembali."
+        },
+        { status: 500 }
+      );
+    }
+
+    if (profile.credits <= 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Kredit kamu sudah habis. Silakan upgrade untuk mendapatkan kredit tambahan."
+        },
+        { status: 403 }
       );
     }
 
@@ -76,8 +137,25 @@ ${input}
 Berikan hasil final yang rapi dan langsung bisa digunakan.`
     });
 
+    const newCredits = profile.credits - 1;
+
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ credits: newCredits })
+      .eq("id", user.id);
+
+    if (updateError) {
+      console.error("Credit update error:", updateError);
+
+      return NextResponse.json(
+        { error: "Hasil berhasil dibuat tetapi kredit gagal diperbarui." },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
-      result: response.output_text
+      result: response.output_text,
+      credits: newCredits
     });
   } catch (error) {
     console.error("GilangAI API Error:", error);
