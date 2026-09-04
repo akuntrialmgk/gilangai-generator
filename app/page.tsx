@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createClient } from "../utils/supabase/client";
 
 const tools = [
   ["caption", "📸", "Caption Instagram"],
@@ -20,6 +21,30 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
+  const [credits, setCredits] = useState<number | null>(null);
+  const supabase = createClient();
+
+useEffect(() => {
+  async function loadCredits() {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("credits")
+      .eq("id", user.id)
+      .single();
+
+    if (data) {
+      setCredits(data.credits);
+    }
+  }
+
+  loadCredits();
+}, []);
 
   const tool = tools[selected];
 
@@ -54,6 +79,10 @@ export default function Home() {
       }
 
       setResult(data.result || "Tidak ada hasil dari AI.");
+
+if (typeof data.credits === "number") {
+  setCredits(data.credits);
+}
     } catch (error) {
       console.error(error);
       setResult("❌ Tidak dapat terhubung ke AI. Silakan coba lagi.");
@@ -95,6 +124,21 @@ export default function Home() {
           <p style={{ color: "#64748b", marginBottom: 0 }}>
             AI Generator untuk bisnis, UMKM & kreator
           </p>
+
+          <div
+  style={{
+    display: "inline-block",
+    marginTop: 12,
+    padding: "8px 14px",
+    borderRadius: 20,
+    background: "#f1edff",
+    color: "#6d4aff",
+    fontWeight: "bold"
+  }}
+>
+  🪙 Kredit: {credits === null ? "..." : credits}
+</div>
+          
         </header>
 
         <section
