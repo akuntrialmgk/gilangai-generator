@@ -26,9 +26,13 @@ export default function LoginPage() {
     try {
       if (isRegister) {
         const { error } = await supabase.auth.signUp({
-          email,
-          password
-        });
+  email,
+  password,
+  options: {
+    emailRedirectTo: `${window.location.origin}/`
+  }
+});
+        
 
         if (error) {
           setMessage(`❌ ${error.message}`);
