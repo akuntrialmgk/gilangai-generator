@@ -22,6 +22,7 @@ export default function Home() {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
+  const [userEmail, setUserEmail] = useState("");
   const supabase = createClient();
 
 useEffect(() => {
@@ -30,7 +31,12 @@ useEffect(() => {
       data: { user }
     } = await supabase.auth.getUser();
 
-    if (!user) return;
+    if (!user) {
+  window.location.href = "/login";
+  return;
+}
+
+setUserEmail(user.email || "");
 
     const { data } = await supabase
       .from("profiles")
@@ -155,6 +161,35 @@ if (typeof data.credits === "number") {
   }}
 >
   🪙 Kredit: {credits === null ? "..." : credits}
+</div>
+
+<div style={{ marginTop: 12 }}>
+  <span
+    style={{
+      color: "#64748b",
+      fontSize: 14,
+      marginRight: 10
+    }}
+  >
+    👤 {userEmail}
+  </span>
+
+  <button
+    onClick={async () => {
+      await supabase.auth.signOut();
+      window.location.href = "/login";
+    }}
+    style={{
+      padding: "8px 12px",
+      borderRadius: 10,
+      border: "1px solid #cbd5e1",
+      background: "#fff",
+      color: "#dc2626",
+      fontWeight: "bold"
+    }}
+  >
+    🚪 Logout
+  </button>
 </div>
           
         </header>
