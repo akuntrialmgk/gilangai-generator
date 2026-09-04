@@ -50,16 +50,44 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState("");
 
-  function generate() {
-    if (!prompt.trim()) {
-      setResult("Silakan masukkan permintaan terlebih dahulu.");
+  async function generate() {
+  if (!prompt.trim()) {
+    setResult("Silakan masukkan permintaan terlebih dahulu.");
+    return;
+  }
+
+  setResult("⏳ GilangAI sedang membuat hasil...");
+
+  try {
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        generator: "caption",
+        values: {
+          prompt: prompt,
+          tool: tools[selected].title,
+        },
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      setResult(`❌ ${data.error || "Gagal membuat konten."}`);
       return;
     }
 
+    setResult(data.result || "Tidak ada hasil dari AI.");
+  } catch (error) {
+    console.error(error);
     setResult(
-      `Hasil ${tools[selected].title}:\n\n${prompt}\n\nIni adalah preview hasil generator GilangAI.`
+      "❌ Tidak dapat terhubung ke AI. Silakan coba lagi."
     );
   }
+}
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
