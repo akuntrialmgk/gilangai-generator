@@ -3,34 +3,34 @@ import { NextResponse } from "next/server";
 
 const prompts: Record<string, string> = {
   caption:
-    "Buat caption Instagram berbahasa Indonesia yang menarik, natural, persuasif, dan tidak terasa seperti spam. Sertakan hook, isi singkat, CTA, dan 5 hashtag relevan.",
+    "Buat caption Instagram berbahasa Indonesia yang menarik, natural, persuasif, dan tidak terasa seperti spam. Sertakan hook, isi caption, CTA, dan hashtag yang relevan.",
 
   ideas:
-    "Buat daftar ide konten praktis dan kreatif. Untuk setiap ide berikan judul/hook, format, konsep singkat, dan CTA.",
+    "Buat 10 ide konten yang kreatif dan praktis. Untuk setiap ide berikan judul, hook, konsep, format konten, dan CTA.",
 
-  ads:
-    "Buat copywriting iklan yang kuat tetapi tidak berlebihan. Berikan 3 variasi: soft selling, direct selling, dan storytelling. Sertakan headline dan CTA.",
+  hook:
+    "Buat 15 hook viral dalam Bahasa Indonesia yang kuat, membuat orang berhenti scrolling, dan cocok untuk konten media sosial.",
 
-  description:
-    "Buat deskripsi produk marketplace yang SEO-friendly, jelas, meyakinkan, dan mudah dipindai. Sertakan headline, manfaat, fitur, cara pakai bila relevan, dan CTA.",
+  product_title:
+    "Buat 15 judul produk yang menarik, jelas, mudah dicari, dan cocok untuk marketplace. Berikan beberapa gaya judul.",
+
+  product_description:
+    "Buat deskripsi produk marketplace yang menarik dan SEO-friendly. Sertakan headline, manfaat, fitur, keunggulan, dan CTA.",
+
+  tiktok_script:
+    "Buat script TikTok lengkap 30-60 detik. Sertakan hook 3 detik pertama, isi, alur visual, dialog/narasi, CTA, dan ide shot.",
+
+  facebook_ads:
+    "Buat 3 variasi iklan Facebook: soft selling, direct selling, dan storytelling. Sertakan headline, primary text, dan CTA.",
+
+  whatsapp_promo:
+    "Buat 5 teks promosi WhatsApp yang natural dan persuasif. Hindari spam. Sertakan pembuka, penawaran, manfaat, dan CTA.",
+
+  bio:
+    "Buat 10 pilihan Bio Instagram yang singkat, profesional, menarik, dan sesuai dengan bisnis atau personal brand pengguna.",
 
   brand:
-    "Buat 15 ide nama brand. Untuk tiap nama berikan arti/konsep, alasan cocok, dan kesan brand. Prioritaskan nama yang mudah diucapkan dan diingat.",
-
-  slogan:
-    "Buat 15 slogan pendek, memorable, dan relevan dengan positioning. Kelompokkan berdasarkan gaya.",
-
-  image:
-    "Buat prompt gambar AI profesional. Berikan versi Bahasa Indonesia dan versi English. Sertakan subject, composition, lighting, camera, environment, style, detail, negative prompt, dan rasio.",
-
-  video:
-    "Buat prompt video AI terstruktur per scene. Sertakan durasi, aksi, camera movement, lighting, environment, transition, audio/mood, dan negative prompt.",
-
-  ebook:
-    "Buat outline ebook lengkap. Sertakan judul, subtitle, target pembaca, promise, daftar isi, rincian setiap bab, latihan/action steps, dan bonus.",
-
-  calendar:
-    "Buat content calendar sesuai jumlah hari. Setiap hari berikan pilar konten, ide, hook, format, CTA, dan tujuan. Variasikan edukasi, engagement, storytelling, dan selling."
+    "Buat 15 ide nama brand yang unik, mudah diingat, mudah diucapkan, dan relevan dengan bisnis pengguna. Sertakan arti dan konsep setiap nama."
 };
 
 export async function POST(req: Request) {
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       model: process.env.OPENAI_MODEL || "gpt-5.6-luna",
 
       instructions:
-        "Kamu adalah asisten AI profesional untuk bisnis, UMKM, marketer, dan kreator Indonesia. Jawab dalam Bahasa Indonesia yang natural, praktis, rapi, dan siap digunakan. Jangan menjelaskan proses berpikirmu.",
+        "Kamu adalah GilangAI, asisten AI profesional untuk bisnis, UMKM, marketer, dan kreator Indonesia. Jawab dalam Bahasa Indonesia yang natural, praktis, rapi, profesional, dan siap digunakan. Jangan menjelaskan proses berpikirmu.",
 
       input: `${prompts[generator]}
 
@@ -85,7 +85,7 @@ Berikan hasil final yang rapi dan langsung bisa digunakan.`
     return NextResponse.json(
       {
         error:
-          "Gagal menghubungi AI. Periksa OPENAI_API_KEY, nama model, dan koneksi."
+          "Gagal menghubungi AI. Periksa API Key, model, atau koneksi."
       },
       { status: 500 }
     );
