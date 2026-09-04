@@ -88,61 +88,31 @@ export async function POST(req: Request) {
       );
     }
 
-    let { data: profile, error: profileError } =
-      await supabase
-        .from("profiles")
-        .select("credits")
-        .eq("id", user.id)
-        .single();
+const { data: remainingCredits, error: creditError } =
+  await supabase.rpc("use_credit", {
+    user_id: user.id
+  });
 
-    if (profileError || !profile) {
-      return NextResponse.json(
-        {
-          error:
-            "Profil pengguna belum tersedia. Silakan logout lalu daftar kembali."
-        },
-        { status: 500 }
-      );
-    }
+if (creditError) {
+  console.error("Credit error:", creditError);
 
-    if (profile.credits <= 0) {
-      return NextResponse.json(
-        {
-          error:
-            "Kredit kamu sudah habis. Silakan upgrade untuk mendapatkan kredit tambahan."
-        },
-        { status: 403 }
-      );
-    }
+  return NextResponse.json(
+    { error: "Gagal memproses kredit." },
+    { status: 500 }
+  );
+}
 
-    const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-    });
+if (remainingCredits === -1) {
+  return NextResponse.json(
+    {
+      error:
+        "Kredit kamu sudah habis. Silakan upgrade untuk mendapatkan kredit tambahan."
+    },
+    { status: 403 }
+  );
+}
 
-    const input = Object.entries(values)
-      .map(([key, value]) => `${key}: ${value}`)
-      .join("\n");
-
-    const response = await client.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-5.6-luna",
-
-      instructions:
-        "Kamu adalah GilangAI, asisten AI profesional untuk bisnis, UMKM, marketer, dan kreator Indonesia. Jawab dalam Bahasa Indonesia yang natural, praktis, rapi, profesional, dan siap digunakan. Jangan menjelaskan proses berpikirmu.",
-
-      input: `${prompts[generator]}
-
-DATA PENGGUNA:
-${input}
-
-Berikan hasil final yang rapi dan langsung bisa digunakan.`
-    });
-
-    const newCredits = profile.credits - 1;
-
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ credits: newCredits })
-      .eq("id", user.id);
+const newCredits = remainingCredits;
 
     if (updateError) {
       console.error("Credit update error:", updateError);
