@@ -123,6 +123,24 @@ if (typeof data.credits === "number") {
 
           <p style={{ color: "#64748b", marginBottom: 0 }}>
             AI Generator untuk bisnis, UMKM & kreator
+
+            <a
+  href="/history"
+  style={{
+    display: "inline-block",
+    marginTop: 12,
+    padding: "10px 16px",
+    background: "#fff",
+    color: "#6d4aff",
+    border: "1px solid #6d4aff",
+    borderRadius: 10,
+    textDecoration: "none",
+    fontWeight: "bold"
+  }}
+>
+  📚 Riwayat
+</a>
+            
           </p>
 
           <div
