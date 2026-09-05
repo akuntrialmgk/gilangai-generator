@@ -23,34 +23,35 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
   const [userEmail, setUserEmail] = useState("");
+
   const supabase = createClient();
 
-useEffect(() => {
-  async function loadCredits() {
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
+  useEffect(() => {
+    async function loadUser() {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-  window.location.href = "/login";
-  return;
-}
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
 
-setUserEmail(user.email || "");
+      setUserEmail(user.email || "");
 
-    const { data } = await supabase
-      .from("profiles")
-      .select("credits")
-      .eq("id", user.id)
-      .single();
+      const { data } = await supabase
+        .from("profiles")
+        .select("credits")
+        .eq("id", user.id)
+        .single();
 
-    if (data) {
-      setCredits(data.credits);
+      if (data) {
+        setCredits(data.credits);
+      }
     }
-  }
 
-  loadCredits();
-}, []);
+    loadUser();
+  }, []);
 
   const tool = tools[selected];
 
@@ -72,7 +73,7 @@ setUserEmail(user.email || "");
         body: JSON.stringify({
           generator: tool[0],
           values: {
-            prompt: prompt
+            prompt
           }
         })
       });
@@ -86,9 +87,9 @@ setUserEmail(user.email || "");
 
       setResult(data.result || "Tidak ada hasil dari AI.");
 
-if (typeof data.credits === "number") {
-  setCredits(data.credits);
-}
+      if (typeof data.credits === "number") {
+        setCredits(data.credits);
+      }
     } catch (error) {
       console.error(error);
       setResult("❌ Tidak dapat terhubung ke AI. Silakan coba lagi.");
@@ -100,7 +101,13 @@ if (typeof data.credits === "number") {
   async function copyResult() {
     if (result) {
       await navigator.clipboard.writeText(result);
+      alert("Hasil berhasil disalin!");
     }
+  }
+
+  async function logout() {
+    await supabase.auth.signOut();
+    window.location.href = "/login";
   }
 
   return (
@@ -109,11 +116,10 @@ if (typeof data.credits === "number") {
         minHeight: "100vh",
         background: "#f7f7fb",
         color: "#172033",
-        padding: "20px"
+        padding: 20
       }}
     >
       <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-
         <header
           style={{
             background: "#fff",
@@ -129,69 +135,77 @@ if (typeof data.credits === "number") {
 
           <p style={{ color: "#64748b", marginBottom: 0 }}>
             AI Generator untuk bisnis, UMKM & kreator
-
-            <a
-  href="/history"
-  style={{
-    display: "inline-block",
-    marginTop: 12,
-    padding: "10px 16px",
-    background: "#fff",
-    color: "#6d4aff",
-    border: "1px solid #6d4aff",
-    borderRadius: 10,
-    textDecoration: "none",
-    fontWeight: "bold"
-  }}
->
-  📚 Riwayat
-</a>
-            
           </p>
 
           <div
-  style={{
-    display: "inline-block",
-    marginTop: 12,
-    padding: "8px 14px",
-    borderRadius: 20,
-    background: "#f1edff",
-    color: "#6d4aff",
-    fontWeight: "bold"
-  }}
->
-  🪙 Kredit: {credits === null ? "..." : credits}
-</div>
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 10,
+              alignItems: "center",
+              marginTop: 14
+            }}
+          >
+            <div
+              style={{
+                padding: "8px 14px",
+                borderRadius: 20,
+                background: "#f1edff",
+                color: "#6d4aff",
+                fontWeight: "bold"
+              }}
+            >
+              🪙 Kredit: {credits === null ? "..." : credits}
+            </div>
 
-<div style={{ marginTop: 12 }}>
-  <span
-    style={{
-      color: "#64748b",
-      fontSize: 14,
-      marginRight: 10
-    }}
-  >
-    👤 {userEmail}
-  </span>
+            <a
+              href="/history"
+              style={{
+                padding: "8px 14px",
+                borderRadius: 10,
+                background: "#fff",
+                color: "#6d4aff",
+                border: "1px solid #6d4aff",
+                textDecoration: "none",
+                fontWeight: "bold"
+              }}
+            >
+              📚 Riwayat
+            </a>
+          </div>
 
-  <button
-    onClick={async () => {
-      await supabase.auth.signOut();
-      window.location.href = "/login";
-    }}
-    style={{
-      padding: "8px 12px",
-      borderRadius: 10,
-      border: "1px solid #cbd5e1",
-      background: "#fff",
-      color: "#dc2626",
-      fontWeight: "bold"
-    }}
-  >
-    🚪 Logout
-  </button>
-</div>
-          
+          <div
+            style={{
+              marginTop: 14,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 10,
+              alignItems: "center"
+            }}
+          >
+            <span
+              style={{
+                color: "#64748b",
+                fontSize: 14
+              }}
+            >
+              👤 {userEmail}
+            </span>
+
+            <button
+              onClick={logout}
+              style={{
+                padding: "9px 14px",
+                borderRadius: 10,
+                border: "1px solid #fecaca",
+                background: "#fff",
+                color: "#dc2626",
+                fontWeight: "bold"
+              }}
+            >
+              🚪 Logout
+            </button>
+          </div>
         </header>
 
         <section
@@ -388,7 +402,6 @@ if (typeof data.credits === "number") {
         >
           © 2026 GilangAI Generator
         </footer>
-
       </div>
     </main>
   );
