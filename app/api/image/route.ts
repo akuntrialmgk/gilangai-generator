@@ -8,7 +8,7 @@ import { cookies } from "next/headers";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const HF_SPACE = process.env.HF_SPACE_NAME || "Qwen/Qwen-Image-Edit";
+const HF_SPACE = process.env.HF_SPACE_NAME || "sam9594/qwen-image-edit-rapid-aio-v23";
 
 const BUCKET = "ai-creations";
 
@@ -127,14 +127,12 @@ export async function POST(req: Request) {
         console.warn("HF Inference Providers quota exhausted; falling back to ZeroGPU Space with low-step mode.");
 
         const gradio = await GradioClient.connect(HF_SPACE);
-        const result = await gradio.predict("/infer", [
+        const result = await gradio.predict("/edit_image", [
           handle_file(bytes),
           prompt,
-          0,
+          42,
           true,
-          1,
-          10,
-          true
+          768
         ]);
 
         const first = (result as any)?.data?.[0];
