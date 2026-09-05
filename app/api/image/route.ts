@@ -1,4 +1,5 @@
 import OpenAI, { toFile } from "openai";
+import { InferenceClient } from "@huggingface/inference";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
@@ -41,7 +42,6 @@ export async function POST(req: Request) {
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Silakan login terlebih dahulu." }, { status: 401 });
-    if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "OPENAI_API_KEY belum diatur di Vercel." }, { status: 500 });
 
     const form = await req.formData();
     const image = form.get("image");
@@ -53,21 +53,51 @@ export async function POST(req: Request) {
     if (!image.type.startsWith("image/")) return NextResponse.json({ error: "File harus berupa gambar." }, { status: 400 });
     if (image.size > 10 * 1024 * 1024) return NextResponse.json({ error: "Ukuran foto maksimal 10 MB." }, { status: 400 });
 
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const bytes = Buffer.from(await image.arrayBuffer());
-    const inputImage = await toFile(bytes, image.name || "product.png", { type: image.type });
 
     const prompt = `Create a polished commercial product photoshoot from the uploaded reference image. Preserve the exact identity, shape, packaging, logo placement, colors, proportions, and important details of the product. Do not invent a different product. ${styles[style] || styles["Studio Product"]}. Place the product in ${backgrounds[background] || backgrounds["Luxury Studio"]}. Make the final image photorealistic, sharp, premium, naturally lit, and suitable for Indonesian ecommerce/social media marketing. ${extra ? `Additional direction: ${extra}` : ""}`;
 
-    const response = await client.images.edit({
-      model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-2",
-      image: inputImage,
-      prompt,
-      size: "1024x1024"
-    });
+    const provider = (process.env.IMAGE_PROVIDER || "huggingface").toLowerCase();
+    let outputBytes: Buffer;
 
-    const imageBase64 = response.data?.[0]?.b64_json;
-    if (!imageBase64) return NextResponse.json({ error: "AI tidak mengembalikan gambar." }, { status: 502 });
+    if (provider === "openai") {
+      if (!process.env.OPENAI_API_KEY) {
+        return NextResponse.json({ error: "OPENAI_API_KEY belum diatur di Vercel." }, { status: 500 });
+      }
+
+      const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const inputImage = await toFile(bytes, image.name || "product.png", { type: image.type });
+      const response = await client.images.edit({
+        model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-2",
+        image: inputImage,
+        prompt,
+        size: "1024x1024"
+      });
+
+      const imageBase64 = response.data?.[0]?.b64_json;
+      if (!imageBase64) return NextResponse.json({ error: "AI tidak mengembalikan gambar." }, { status: 502 });
+      outputBytes = Buffer.from(imageBase64, "base64");
+    } else {
+      if (!process.env.HF_TOKEN) {
+        return NextResponse.json({
+          error: "Mode gratis belum dikonfigurasi. Tambahkan HF_TOKEN di Vercel. Tidak perlu menambahkan saldo OpenAI untuk mode gratis."
+        }, { status: 500 });
+      }
+
+      const client = new InferenceClient(process.env.HF_TOKEN);
+      const result = await client.imageToImage({
+        data: new Blob([bytes], { type: image.type }),
+        model: process.env.HF_IMAGE_MODEL || "Qwen/Qwen-Image-Edit",
+        parameters: {
+          prompt,
+          target_size: { width: 1024, height: 1024 }
+        }
+      });
+
+      outputBytes = Buffer.from(await result.arrayBuffer());
+    }
+
+    const imageBase64 = outputBytes.toString("base64");
 
     const { data: remainingCredits, error: creditError } = await supabase.rpc("use_credit", { user_id: user.id });
     if (creditError) {
@@ -79,8 +109,14 @@ export async function POST(req: Request) {
     if (newCredits < 0) return NextResponse.json({ error: "Kredit kamu sudah habis. Silakan upgrade untuk mendapatkan kredit tambahan." }, { status: 403 });
 
     return NextResponse.json({ image: `data:image/png;base64,${imageBase64}`, credits: newCredits });
-  } catch (error) {
+  } catch (error: any) {
     console.error("GilangAI Image API Error:", error);
-    return NextResponse.json({ error: "Gagal membuat gambar AI. Periksa API key, akses model gambar, atau koneksi." }, { status: 500 });
+    const status = Number(error?.status || error?.response?.status || 500);
+    const message = String(error?.message || "Gagal membuat gambar AI.");
+    return NextResponse.json({
+      error: status === 402 || status === 429
+        ? "Kuota provider gambar gratis sedang habis atau provider meminta pembayaran. Coba lagi nanti atau gunakan provider lain."
+        : `Gagal membuat gambar AI: ${message.slice(0, 300)}`
+    }, { status: status >= 400 && status < 600 ? status : 500 });
   }
 }
