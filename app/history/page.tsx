@@ -24,6 +24,9 @@ export default function HistoryPage() {
   const [creations, setCreations] = useState<Creation[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState("");
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [favoriteBusy, setFavoriteBusy] = useState("");
+  const [preview, setPreview] = useState<Creation | null>(null);
 
   const supabase = createClient();
 
@@ -37,13 +40,14 @@ export default function HistoryPage() {
       return;
     }
 
-    const [historyResponse, creationsResponse] = await Promise.all([
+    const [historyResponse, creationsResponse, favoritesResponse] = await Promise.all([
       supabase
         .from("generation_history")
         .select("id,generator,prompt,result,created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
-      fetch("/api/creations", { cache: "no-store" })
+      fetch("/api/creations", { cache: "no-store" }),
+      fetch("/api/favorites", { cache: "no-store" })
     ]);
 
     if (!historyResponse.error && historyResponse.data) {
@@ -53,6 +57,11 @@ export default function HistoryPage() {
     if (creationsResponse.ok) {
       const data = await creationsResponse.json();
       setCreations(data.creations || []);
+    }
+
+    if (favoritesResponse.ok) {
+      const data = await favoritesResponse.json();
+      setFavorites(data.favorites || []);
     }
 
     setLoading(false);
@@ -82,6 +91,31 @@ export default function HistoryPage() {
   async function copyText(text: string) {
     await navigator.clipboard.writeText(text);
     alert("Hasil berhasil disalin!");
+  }
+
+  async function toggleFavorite(path: string) {
+    setFavoriteBusy(path);
+    const isFavorite = favorites.includes(path);
+    try {
+      const response = await fetch("/api/favorites", {
+        method: isFavorite ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || "Gagal mengubah favorit.");
+        return;
+      }
+      setFavorites((current) =>
+        isFavorite ? current.filter((item) => item !== path) : [...current, path]
+      );
+    } catch (error) {
+      console.error(error);
+      alert("Tidak dapat mengubah favorit.");
+    } finally {
+      setFavoriteBusy("");
+    }
   }
 
   async function deleteCreation(path: string) {
@@ -199,21 +233,43 @@ export default function HistoryPage() {
                       boxShadow: "0 8px 30px rgba(15, 23, 42, 0.06)"
                     }}
                   >
-                    <img
-                      src={item.url}
-                      alt="Hasil AI Photoshoot"
+                    <button
+                      onClick={() => setPreview(item)}
                       style={{
-                        width: "100%",
-                        aspectRatio: "1 / 1",
-                        objectFit: "cover",
-                        display: "block"
+                        display: "block", width: "100%", padding: 0, border: 0, background: "transparent", cursor: "pointer"
                       }}
-                    />
+                      aria-label="Lihat gambar lebih besar"
+                    >
+                      <img
+                        src={item.url}
+                        alt="Hasil AI Photoshoot"
+                        style={{
+                          width: "100%",
+                          aspectRatio: "1 / 1",
+                          objectFit: "cover",
+                          display: "block"
+                        }}
+                      />
+                    </button>
                     <div style={{ padding: 14 }}>
                       <div style={{ color: "#64748b", fontSize: 13, marginBottom: 10 }}>
                         {new Date(item.created_at).toLocaleString("id-ID")}
                       </div>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button
+                          onClick={() => toggleFavorite(item.path)}
+                          disabled={favoriteBusy === item.path}
+                          style={{
+                            padding: "9px 12px",
+                            borderRadius: 10,
+                            border: "1px solid #e2e8f0",
+                            background: favorites.includes(item.path) ? "#fff7ed" : "#fff",
+                            color: favorites.includes(item.path) ? "#ea580c" : "#475569",
+                            fontSize: 14
+                          }}
+                        >
+                          {favoriteBusy === item.path ? "..." : favorites.includes(item.path) ? "★ Favorit" : "☆ Favorit"}
+                        </button>
                         <a
                           href={item.url}
                           download
@@ -330,6 +386,34 @@ export default function HistoryPage() {
           </section>
         )}
       </div>
+
+      {preview && (
+        <div
+          onClick={() => setPreview(null)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(15,23,42,.78)", zIndex: 50,
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{ maxWidth: 900, width: "100%", maxHeight: "90vh", background: "#fff", borderRadius: 18, padding: 12, position: "relative" }}
+          >
+            <button
+              onClick={() => setPreview(null)}
+              style={{ position: "absolute", right: 12, top: 12, zIndex: 2, border: 0, borderRadius: 999, width: 38, height: 38, background: "rgba(255,255,255,.95)", fontSize: 20 }}
+              aria-label="Tutup preview"
+            >
+              ×
+            </button>
+            <img
+              src={preview.url}
+              alt="Preview hasil AI Photoshoot"
+              style={{ width: "100%", maxHeight: "84vh", objectFit: "contain", borderRadius: 12, display: "block" }}
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }
