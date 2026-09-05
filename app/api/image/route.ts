@@ -1,11 +1,14 @@
 import OpenAI, { toFile } from "openai";
 import { InferenceClient } from "@huggingface/inference";
+import { Client as GradioClient, handle_file } from "@gradio/client";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const HF_SPACE = process.env.HF_SPACE_NAME || "Qwen/Qwen-Image-Edit";
 
 const BUCKET = "ai-creations";
 
@@ -94,22 +97,60 @@ export async function POST(req: Request) {
     } else {
       if (!process.env.HF_TOKEN) {
         return NextResponse.json({
-          error: "Mode gratis belum dikonfigurasi. Tambahkan HF_TOKEN di Vercel. Tidak perlu menambahkan saldo OpenAI untuk mode gratis."
+          error: "HF_TOKEN belum diatur di Vercel. Tambahkan token Hugging Face untuk mode gratis."
         }, { status: 500 });
       }
 
-      const client = new InferenceClient(process.env.HF_TOKEN);
-      const result = await client.imageToImage({
-        inputs: new Blob([bytes], { type: image.type }),
-        model: process.env.HF_IMAGE_MODEL || "Qwen/Qwen-Image-Edit",
-        parameters: {
-          prompt,
-          target_size: { width: 1024, height: 1024 }
-        }
-      });
+      // Primary free route: Hugging Face Inference Providers.
+      // If the small monthly provider credit is exhausted, automatically
+      // fall back to the public Qwen ZeroGPU Space for MVP testing.
+      try {
+        const client = new InferenceClient(process.env.HF_TOKEN);
+        const result = await client.imageToImage({
+          inputs: new Blob([bytes], { type: image.type }),
+          model: process.env.HF_IMAGE_MODEL || "Qwen/Qwen-Image-Edit",
+          parameters: {
+            prompt,
+            target_size: { width: 1024, height: 1024 }
+          }
+        });
 
-      outputContentType = result.type || "image/png";
-      outputBytes = Buffer.from(await result.arrayBuffer());
+        outputContentType = result.type || "image/png";
+        outputBytes = Buffer.from(await result.arrayBuffer());
+      } catch (providerError: any) {
+        const providerStatus = Number(providerError?.status || providerError?.response?.status || 0);
+        const providerMessage = String(providerError?.message || "");
+        const quotaError = providerStatus === 402 || providerStatus === 429 || /depleted|credits|prepaid|included usage|purchase/i.test(providerMessage);
+
+        if (!quotaError) throw providerError;
+
+        console.warn("HF Inference Providers quota exhausted; falling back to ZeroGPU Space.");
+
+        const gradio = await GradioClient.connect(HF_SPACE);
+        const result = await gradio.predict("/infer", [
+          handle_file(bytes),
+          prompt,
+          0,
+          true,
+          4,
+          20,
+          true
+        ]);
+
+        const first = (result as any)?.data?.[0];
+        const imageUrl = typeof first === "string" ? first : first?.url || first?.path;
+        if (!imageUrl) {
+          throw new Error("ZeroGPU Space tidak mengembalikan URL gambar.");
+        }
+
+        const imageResponse = await fetch(imageUrl);
+        if (!imageResponse.ok) {
+          throw new Error(`Gagal mengambil hasil gambar dari ZeroGPU Space (${imageResponse.status}).`);
+        }
+
+        outputContentType = imageResponse.headers.get("content-type") || "image/png";
+        outputBytes = Buffer.from(await imageResponse.arrayBuffer());
+      }
     }
 
     if (!outputBytes.length) {
