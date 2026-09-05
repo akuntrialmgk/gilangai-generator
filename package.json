@@ -14,7 +14,8 @@
     "openai": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "@huggingface/inference": "latest"
+    "@huggingface/inference": "latest",
+    "@gradio/client": "latest"
   },
   "devDependencies": {
     "typescript": "latest",
