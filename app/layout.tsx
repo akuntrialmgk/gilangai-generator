@@ -2,13 +2,11 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "GilangAI Generator",
-  description: "AI content generator untuk bisnis dan kreator.",
+  title: "Gilang AI — AI Creative Studio",
+  description: "Workspace AI untuk membuat konten, foto, dan video.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="id">
       <body>{children}</body>
