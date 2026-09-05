@@ -360,7 +360,7 @@ export default function Home() {
                   <small className="photo-note">1 generate menggunakan 1 credit pada versi awal.</small>
                 </div>
                 <div className="photo-result-panel">
-                  {photoResult ? <><div className="photo-result-image"><img src={photoResult} alt="Hasil AI Photoshoot" /></div><div className="photo-result-actions"><button className="secondary-btn small" onClick={downloadPhoto}>⬇️ Download</button><span>Hasil AI Photoshoot</span></div></> : <div className="photo-empty"><div>📸</div><strong>Hasil foto akan muncul di sini</strong><span>Upload produk lalu pilih style dan background.</span></div>}
+                  {photoResult ? <><div className="photo-result-image"><img src={photoResult} alt="Hasil AI Photoshoot" /></div><div className="photo-result-actions"><button className="secondary-btn small" onClick={downloadPhoto}>⬇️ Download</button><a className="text-link" href="/history">📁 Tersimpan di My Creations</a></div></> : <div className="photo-empty"><div>📸</div><strong>Hasil foto akan muncul di sini</strong><span>Upload produk lalu pilih style dan background.</span></div>}
                 </div>
               </div>
             </section>
