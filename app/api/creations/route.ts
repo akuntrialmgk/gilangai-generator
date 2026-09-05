@@ -96,6 +96,13 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: `Gagal menghapus gambar: ${error.message}` }, { status: 500 });
     }
 
+    // Hapus juga status favorit jika gambar tersebut pernah difavoritkan.
+    await supabase
+      .from("favorite_creations")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("storage_path", path);
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("GilangAI Creations DELETE Error:", error);
