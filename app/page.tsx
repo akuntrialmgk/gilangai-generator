@@ -379,18 +379,22 @@ export default function Home() {
             Akses fitur AI lebih lengkap dan produktivitas lebih tinggi.
           </p>
 
-          <button
-            style={{
-              padding: "11px 18px",
-              border: 0,
-              borderRadius: 10,
-              background: "#fff",
-              color: "#6d4aff",
-              fontWeight: "bold"
-            }}
-          >
-            Upgrade
-          </button>
+ <button
+  onClick={() => {
+    window.location.href = "/pricing";
+  }}
+  style={{
+    padding: "11px 18px",
+    border: 0,
+    borderRadius: 10,
+    background: "#fff",
+    color: "#6d4aff",
+    fontWeight: "bold"
+  }}
+>
+  Upgrade
+</button>
+        
         </section>
 
         <footer
