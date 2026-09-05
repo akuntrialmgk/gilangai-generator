@@ -11,42 +11,60 @@ type HistoryItem = {
   created_at: string;
 };
 
+type Creation = {
+  name: string;
+  path: string;
+  url: string;
+  created_at: string;
+  size: number | null;
+};
+
 export default function HistoryPage() {
   const [items, setItems] = useState<HistoryItem[]>([]);
+  const [creations, setCreations] = useState<Creation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState("");
 
   const supabase = createClient();
 
-  useEffect(() => {
-    async function loadHistory() {
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
+  async function loadData() {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("generation_history")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        setItems(data);
-      }
-
+    if (!user) {
       setLoading(false);
+      return;
     }
 
-    loadHistory();
+    const [historyResponse, creationsResponse] = await Promise.all([
+      supabase
+        .from("generation_history")
+        .select("id,generator,prompt,result,created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+      fetch("/api/creations", { cache: "no-store" })
+    ]);
+
+    if (!historyResponse.error && historyResponse.data) {
+      setItems(historyResponse.data);
+    }
+
+    if (creationsResponse.ok) {
+      const data = await creationsResponse.json();
+      setCreations(data.creations || []);
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   function toolName(id: string) {
     const names: Record<string, string> = {
-      caption: "📸 Caption Instagram",
+      caption: "✍️ Caption Instagram",
       ideas: "💡 Ide Konten",
       hook: "🔥 Hook Viral",
       product_title: "🛍️ Judul Produk",
@@ -66,6 +84,32 @@ export default function HistoryPage() {
     alert("Hasil berhasil disalin!");
   }
 
+  async function deleteCreation(path: string) {
+    if (!confirm("Hapus gambar ini dari My Creations?")) return;
+
+    setDeleting(path);
+    try {
+      const response = await fetch("/api/creations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || "Gagal menghapus gambar.");
+        return;
+      }
+
+      setCreations((current) => current.filter((item) => item.path !== path));
+    } catch (error) {
+      console.error(error);
+      alert("Tidak dapat menghapus gambar.");
+    } finally {
+      setDeleting("");
+    }
+  }
+
   return (
     <main
       style={{
@@ -75,7 +119,7 @@ export default function HistoryPage() {
         color: "#172033"
       }}
     >
-      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1000, margin: "0 auto" }}>
         <header
           style={{
             background: "#fff",
@@ -84,9 +128,9 @@ export default function HistoryPage() {
             marginBottom: 20
           }}
         >
-          <h1 style={{ marginTop: 0 }}>📚 Riwayat Generate</h1>
+          <h1 style={{ marginTop: 0 }}>📚 My Creations</h1>
           <p style={{ color: "#64748b" }}>
-            Semua konten yang pernah kamu buat dengan GilangAI.
+            Semua hasil AI Photo dan konten yang pernah kamu buat dengan Gilang AI.
           </p>
 
           <a
@@ -100,39 +144,19 @@ export default function HistoryPage() {
               textDecoration: "none"
             }}
           >
-            ← Kembali ke Generator
+            ← Kembali ke Dashboard
           </a>
         </header>
 
         {loading && (
-          <div
-            style={{
-              background: "#fff",
-              padding: 24,
-              borderRadius: 18
-            }}
-          >
-            ⏳ Memuat riwayat...
+          <div style={{ background: "#fff", padding: 24, borderRadius: 18 }}>
+            ⏳ Memuat My Creations...
           </div>
         )}
 
-        {!loading && items.length === 0 && (
-          <div
-            style={{
-              background: "#fff",
-              padding: 30,
-              borderRadius: 18,
-              textAlign: "center"
-            }}
-          >
-            Belum ada riwayat generate.
-          </div>
-        )}
-
-        {!loading &&
-          items.map((item) => (
-            <article
-              key={item.id}
+        {!loading && (
+          <section style={{ marginBottom: 28 }}>
+            <div
               style={{
                 background: "#fff",
                 borderRadius: 18,
@@ -140,49 +164,171 @@ export default function HistoryPage() {
                 marginBottom: 16
               }}
             >
-              <h2 style={{ marginTop: 0 }}>
-                {toolName(item.generator)}
-              </h2>
-
+              <h2 style={{ marginTop: 0 }}>📸 AI Photos</h2>
               <p style={{ color: "#64748b" }}>
-                {new Date(item.created_at).toLocaleString("id-ID")}
+                Hasil AI Photoshoot tersimpan aman di Supabase Storage.
               </p>
+            </div>
 
+            {creations.length === 0 ? (
               <div
                 style={{
-                  background: "#f8fafc",
-                  padding: 14,
-                  borderRadius: 12,
-                  marginBottom: 12
+                  background: "#fff",
+                  padding: 30,
+                  borderRadius: 18,
+                  textAlign: "center"
                 }}
               >
-                <strong>Prompt:</strong>
-                <div style={{ marginTop: 6 }}>{item.prompt}</div>
+                Belum ada hasil AI Photo yang tersimpan.
               </div>
-
+            ) : (
               <div
                 style={{
-                  whiteSpace: "pre-wrap",
-                  lineHeight: 1.7
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                  gap: 16
                 }}
               >
-                {item.result}
+                {creations.map((item) => (
+                  <article
+                    key={item.path}
+                    style={{
+                      background: "#fff",
+                      borderRadius: 18,
+                      overflow: "hidden",
+                      boxShadow: "0 8px 30px rgba(15, 23, 42, 0.06)"
+                    }}
+                  >
+                    <img
+                      src={item.url}
+                      alt="Hasil AI Photoshoot"
+                      style={{
+                        width: "100%",
+                        aspectRatio: "1 / 1",
+                        objectFit: "cover",
+                        display: "block"
+                      }}
+                    />
+                    <div style={{ padding: 14 }}>
+                      <div style={{ color: "#64748b", fontSize: 13, marginBottom: 10 }}>
+                        {new Date(item.created_at).toLocaleString("id-ID")}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <a
+                          href={item.url}
+                          download
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            padding: "9px 12px",
+                            borderRadius: 10,
+                            background: "#6d4aff",
+                            color: "#fff",
+                            textDecoration: "none",
+                            fontSize: 14
+                          }}
+                        >
+                          ⬇️ Download
+                        </a>
+                        <button
+                          onClick={() => deleteCreation(item.path)}
+                          disabled={deleting === item.path}
+                          style={{
+                            padding: "9px 12px",
+                            borderRadius: 10,
+                            border: "1px solid #fecaca",
+                            background: "#fff",
+                            color: "#b91c1c",
+                            fontSize: 14
+                          }}
+                        >
+                          {deleting === item.path ? "Menghapus..." : "🗑️ Hapus"}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
               </div>
+            )}
+          </section>
+        )}
 
-              <button
-                onClick={() => copyText(item.result)}
+        {!loading && (
+          <section>
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 18,
+                padding: 22,
+                marginBottom: 16
+              }}
+            >
+              <h2 style={{ marginTop: 0 }}>✍️ Riwayat AI Content</h2>
+              <p style={{ color: "#64748b" }}>
+                Riwayat teks tetap menggunakan tabel generation_history yang sudah ada.
+              </p>
+            </div>
+
+            {items.length === 0 && (
+              <div
                 style={{
-                  marginTop: 16,
-                  padding: "10px 15px",
-                  borderRadius: 10,
-                  border: "1px solid #cbd5e1",
-                  background: "#fff"
+                  background: "#fff",
+                  padding: 30,
+                  borderRadius: 18,
+                  textAlign: "center"
                 }}
               >
-                📋 Copy Hasil
-              </button>
-            </article>
-          ))}
+                Belum ada riwayat generate konten.
+              </div>
+            )}
+
+            {items.map((item) => (
+              <article
+                key={item.id}
+                style={{
+                  background: "#fff",
+                  borderRadius: 18,
+                  padding: 22,
+                  marginBottom: 16
+                }}
+              >
+                <h2 style={{ marginTop: 0 }}>{toolName(item.generator)}</h2>
+                <p style={{ color: "#64748b" }}>
+                  {new Date(item.created_at).toLocaleString("id-ID")}
+                </p>
+
+                <div
+                  style={{
+                    background: "#f8fafc",
+                    padding: 14,
+                    borderRadius: 12,
+                    marginBottom: 12
+                  }}
+                >
+                  <strong>Prompt:</strong>
+                  <div style={{ marginTop: 6 }}>{item.prompt}</div>
+                </div>
+
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
+                  {item.result}
+                </div>
+
+                <button
+                  onClick={() => copyText(item.result)}
+                  style={{
+                    marginTop: 16,
+                    padding: "10px 15px",
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    background: "#fff"
+                  }}
+                >
+                  📋 Copy Hasil
+                </button>
+              </article>
+            ))}
+          </section>
+        )}
       </div>
     </main>
   );
