@@ -267,7 +267,7 @@ export default function Home() {
           <div className="nav-label">WORKSPACE</div>
           <a className="nav-item" href="/history"><span>📁</span> My Creations</a>
           <a className="nav-item" href="#templates"><span>🧩</span> Template</a>
-          <a className="nav-item" href="#recent"><span>❤️</span> Favorit</a>
+          <a className="nav-item" href="/favorites"><span>❤️</span> Favorit</a>
           <a className="nav-item" href="/history"><span>🕘</span> Riwayat</a>
         </nav>
 
