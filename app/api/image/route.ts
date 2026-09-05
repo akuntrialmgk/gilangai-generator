@@ -86,7 +86,7 @@ export async function POST(req: Request) {
 
       const client = new InferenceClient(process.env.HF_TOKEN);
       const result = await client.imageToImage({
-        data: new Blob([bytes], { type: image.type }),
+        inputs: new Blob([bytes], { type: image.type }),
         model: process.env.HF_IMAGE_MODEL || "Qwen/Qwen-Image-Edit",
         parameters: {
           prompt,
