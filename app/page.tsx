@@ -1,28 +1,57 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "../utils/supabase/client";
 
-const tools = [
-  ["caption", "📸", "Caption Instagram"],
-  ["ideas", "💡", "Ide Konten"],
-  ["hook", "🔥", "Hook Viral"],
-  ["product_title", "🛍️", "Judul Produk"],
-  ["product_description", "📝", "Deskripsi Produk"],
-  ["tiktok_script", "🎵", "Script TikTok"],
-  ["facebook_ads", "📣", "Iklan Facebook"],
-  ["whatsapp_promo", "💬", "Promosi WhatsApp"],
-  ["bio", "👤", "Bio Instagram"],
-  ["brand", "✨", "Nama Brand"]
+const contentTools = [
+  ["caption", "✍️", "Caption Instagram", "Buat caption yang siap posting"],
+  ["ideas", "💡", "Ide Konten", "Temukan ide konten baru"],
+  ["hook", "🔥", "Hook Viral", "Hook untuk menghentikan scroll"],
+  ["product_title", "🛍️", "Judul Produk", "Judul marketplace yang menarik"],
+  ["product_description", "📝", "Deskripsi Produk", "Deskripsi produk yang menjual"],
+  ["tiktok_script", "🎬", "Script TikTok", "Script video 30–60 detik"],
+  ["facebook_ads", "📣", "Iklan Facebook", "Copy iklan siap digunakan"],
+  ["whatsapp_promo", "💬", "Promosi WhatsApp", "Pesan promosi natural"],
+  ["bio", "👤", "Bio Instagram", "Bio singkat dan profesional"],
+  ["brand", "✨", "Nama Brand", "Ide nama brand yang kuat"]
 ];
 
+const photoTools = [
+  ["photoshoot", "📸", "AI Photoshoot", "Foto produk profesional", "Popular"],
+  ["product-photo", "🛍️", "AI Product Photo", "Buat foto produk premium", "Soon"],
+  ["background", "🌄", "AI Background", "Ganti background dengan AI", "Soon"],
+  ["remove-bg", "🪄", "Remove Background", "Hapus background otomatis", "Soon"],
+  ["image-generator", "🎨", "AI Image Generator", "Buat gambar dari prompt", "Soon"],
+  ["portrait", "🧑", "AI Portrait", "Buat portrait kreatif", "Soon"],
+  ["upscale", "✨", "AI Upscale", "Tingkatkan kualitas foto", "Soon"],
+  ["poster", "🖼️", "AI Poster & Banner", "Buat materi promosi visual", "Soon"]
+];
+
+const videoTools = [
+  ["image-to-video", "🎞️", "Image to Video", "Ubah gambar menjadi video"],
+  ["text-to-video", "🎥", "Text to Video", "Buat video dari ide"],
+  ["talking-photo", "🗣️", "Talking Photo", "Foto yang bisa berbicara"],
+  ["product-video", "📦", "Product Video", "Video promosi produk"]
+];
+
+type HistoryItem = {
+  id: number;
+  generator: string;
+  prompt: string;
+  result: string;
+  created_at: string;
+};
+
 export default function Home() {
+  const [activeCategory, setActiveCategory] = useState("all");
   const [selected, setSelected] = useState(0);
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
   const [userEmail, setUserEmail] = useState("");
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [mobileMenu, setMobileMenu] = useState(false);
 
   const supabase = createClient();
 
@@ -39,21 +68,31 @@ export default function Home() {
 
       setUserEmail(user.email || "");
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("credits")
-        .eq("id", user.id)
-        .single();
+      const [{ data: profile }, { data: historyData }] = await Promise.all([
+        supabase.from("profiles").select("credits").eq("id", user.id).single(),
+        supabase
+          .from("generation_history")
+          .select("id,generator,prompt,result,created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5)
+      ]);
 
-      if (data) {
-        setCredits(data.credits);
-      }
+      if (profile) setCredits(profile.credits);
+      if (historyData) setHistory(historyData);
     }
 
     loadUser();
   }, []);
 
-  const tool = tools[selected];
+  const tool = contentTools[selected];
+
+  const visibleTools = useMemo(() => {
+    if (activeCategory === "content") return contentTools;
+    if (activeCategory === "photo") return photoTools;
+    if (activeCategory === "video") return videoTools;
+    return [...contentTools, ...photoTools, ...videoTools];
+  }, [activeCategory]);
 
   async function generate() {
     if (!prompt.trim()) {
@@ -67,14 +106,10 @@ export default function Home() {
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           generator: tool[0],
-          values: {
-            prompt
-          }
+          values: { prompt }
         })
       });
 
@@ -86,9 +121,19 @@ export default function Home() {
       }
 
       setResult(data.result || "Tidak ada hasil dari AI.");
+      if (typeof data.credits === "number") setCredits(data.credits);
 
-      if (typeof data.credits === "number") {
-        setCredits(data.credits);
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data: latest } = await supabase
+          .from("generation_history")
+          .select("id,generator,prompt,result,created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        if (latest) setHistory(latest);
       }
     } catch (error) {
       console.error(error);
@@ -110,303 +155,147 @@ export default function Home() {
     window.location.href = "/login";
   }
 
+  function selectContentTool(id: string) {
+    const index = contentTools.findIndex((item) => item[0] === id);
+    if (index >= 0) {
+      setActiveCategory("content");
+      setSelected(index);
+      setResult("");
+      setTimeout(() => document.getElementById("generator")?.scrollIntoView({ behavior: "smooth" }), 50);
+    }
+  }
+
+  function comingSoon(name: string) {
+    alert(`${name} akan kita aktifkan pada Step 2 setelah dashboard selesai.`);
+  }
+
+  function toolLabel(id: string) {
+    const all = [...contentTools, ...photoTools, ...videoTools];
+    return all.find((item) => item[0] === id)?.[2] || id;
+  }
+
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#f7f7fb",
-        color: "#172033",
-        padding: 20
-      }}
-    >
-      <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-        <header
-          style={{
-            background: "#fff",
-            borderRadius: 18,
-            padding: 22,
-            marginBottom: 20,
-            boxShadow: "0 4px 18px rgba(0,0,0,.06)"
-          }}
-        >
-          <h1 style={{ margin: 0, fontSize: 32 }}>
-            🤖 GilangAI
-          </h1>
-
-          <p style={{ color: "#64748b", marginBottom: 0 }}>
-            AI Generator untuk bisnis, UMKM & kreator
-          </p>
-
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 10,
-              alignItems: "center",
-              marginTop: 14
-            }}
-          >
-            <div
-              style={{
-                padding: "8px 14px",
-                borderRadius: 20,
-                background: "#f1edff",
-                color: "#6d4aff",
-                fontWeight: "bold"
-              }}
-            >
-              🪙 Kredit: {credits === null ? "..." : credits}
-            </div>
-
-            <a
-              href="/history"
-              style={{
-                padding: "8px 14px",
-                borderRadius: 10,
-                background: "#fff",
-                color: "#6d4aff",
-                border: "1px solid #6d4aff",
-                textDecoration: "none",
-                fontWeight: "bold"
-              }}
-            >
-              📚 Riwayat
-            </a>
+    <main className="dashboard-shell">
+      <aside className={`sidebar ${mobileMenu ? "sidebar-open" : ""}`}>
+        <div className="brand-block">
+          <div className="brand-mark">G</div>
+          <div>
+            <div className="brand-name">Gilang AI</div>
+            <div className="brand-subtitle">AI Creative Studio</div>
           </div>
+        </div>
 
-          <div
-            style={{
-              marginTop: 14,
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 10,
-              alignItems: "center"
-            }}
-          >
-            <span
-              style={{
-                color: "#64748b",
-                fontSize: 14
-              }}
-            >
-              👤 {userEmail}
-            </span>
+        <nav className="sidebar-nav">
+          <a className="nav-item active" href="#top" onClick={() => setMobileMenu(false)}><span>⌂</span> Dashboard</a>
+          <div className="nav-label">AI CONTENT</div>
+          <button className="nav-item" onClick={() => { setActiveCategory("content"); setMobileMenu(false); }}><span>✍️</span> AI Content</button>
+          <button className="nav-item" onClick={() => { setActiveCategory("photo"); setMobileMenu(false); }}><span>📸</span> AI Photo <em>NEW</em></button>
+          <button className="nav-item" onClick={() => { setActiveCategory("video"); setMobileMenu(false); }}><span>🎬</span> AI Video <em>SOON</em></button>
+          <div className="nav-label">WORKSPACE</div>
+          <a className="nav-item" href="/history"><span>📁</span> My Creations</a>
+          <a className="nav-item" href="#templates"><span>🧩</span> Template</a>
+          <a className="nav-item" href="#recent"><span>❤️</span> Favorit</a>
+          <a className="nav-item" href="/history"><span>🕘</span> Riwayat</a>
+        </nav>
 
-            <button
-              onClick={logout}
-              style={{
-                padding: "9px 14px",
-                borderRadius: 10,
-                border: "1px solid #fecaca",
-                background: "#fff",
-                color: "#dc2626",
-                fontWeight: "bold"
-              }}
-            >
-              🚪 Logout
-            </button>
+        <div className="sidebar-bottom">
+          <div className="lifetime-mini">
+            <div className="mini-crown">♛</div>
+            <strong>Gilang AI Lifetime</strong>
+            <span>Akses semua fitur dalam satu paket.</span>
+            <a href="/pricing">Lihat paket →</a>
+          </div>
+          <button className="account-mini" onClick={logout}>
+            <span className="avatar">{userEmail ? userEmail[0].toUpperCase() : "G"}</span>
+            <span className="account-copy"><strong>{userEmail || "Akun Gilang"}</strong><small>Logout</small></span>
+            <span>⋮</span>
+          </button>
+        </div>
+      </aside>
+
+      {mobileMenu && <button className="sidebar-backdrop" aria-label="Tutup menu" onClick={() => setMobileMenu(false)} />}
+
+      <section className="main-area" id="top">
+        <header className="topbar">
+          <button className="mobile-menu-btn" onClick={() => setMobileMenu(true)}>☰</button>
+          <div className="search-box"><span>⌕</span><input placeholder="Cari tools, template, atau kreasi..." /></div>
+          <div className="top-actions">
+            <div className="credit-pill">✦ {credits === null ? "..." : credits} credits</div>
+            <a className="icon-button" href="/history" aria-label="Riwayat">🕘</a>
+            <a className="icon-button" href="/pricing" aria-label="Pricing">♛</a>
+            <div className="top-avatar">{userEmail ? userEmail[0].toUpperCase() : "G"}</div>
           </div>
         </header>
 
-        <section
-          style={{
-            background: "linear-gradient(135deg,#eee9ff,#fff)",
-            borderRadius: 18,
-            padding: 24,
-            marginBottom: 20
-          }}
-        >
-          <h2 style={{ marginTop: 0 }}>
-            Selamat datang kembali! 👋
-          </h2>
-
-          <p style={{ color: "#64748b", marginBottom: 0 }}>
-            Pilih AI Tools dan buat konten berkualitas dalam hitungan detik.
-          </p>
-        </section>
-
-        <h2>AI Tools</h2>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit,minmax(170px,1fr))",
-            gap: 12
-          }}
-        >
-          {tools.map((item, index) => (
-            <button
-              key={item[0]}
-              onClick={() => {
-                setSelected(index);
-                setResult("");
-              }}
-              style={{
-                padding: 16,
-                textAlign: "left",
-                borderRadius: 14,
-                border:
-                  selected === index
-                    ? "2px solid #6d4aff"
-                    : "1px solid #e2e8f0",
-                background:
-                  selected === index
-                    ? "#f1edff"
-                    : "#fff"
-              }}
-            >
-              <div style={{ fontSize: 26 }}>
-                {item[1]}
+        <div className="content-wrap">
+          <section className="hero-dashboard">
+            <div className="hero-copy">
+              <div className="eyebrow">AI CREATIVE STUDIO</div>
+              <h1>Bangun konten <span>lebih cepat</span><br />dengan Gilang AI.</h1>
+              <p>Satu workspace untuk membuat konten, foto produk, materi promosi, dan video dengan bantuan AI.</p>
+              <div className="hero-buttons">
+                <button className="primary-btn" onClick={() => { setActiveCategory("content"); document.getElementById("tools")?.scrollIntoView({ behavior: "smooth" }); }}>✨ Mulai Membuat</button>
+                <a className="secondary-btn" href="/history">Lihat kreasi saya →</a>
               </div>
-
-              <strong>{item[2]}</strong>
-            </button>
-          ))}
-        </div>
-
-        <section
-          style={{
-            background: "#fff",
-            borderRadius: 18,
-            padding: 22,
-            marginTop: 20,
-            boxShadow: "0 4px 18px rgba(0,0,0,.06)"
-          }}
-        >
-          <h2 style={{ marginTop: 0 }}>
-            {tool[1]} {tool[2]}
-          </h2>
-
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder={`Contoh: buat ${String(
-              tool[2]
-            ).toLowerCase()} untuk bisnis ayam geprek`}
-            rows={5}
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: 14,
-              borderRadius: 12,
-              border: "1px solid #cbd5e1",
-              resize: "vertical"
-            }}
-          />
-
-          <button
-            onClick={generate}
-            disabled={loading}
-            style={{
-              marginTop: 12,
-              padding: "13px 20px",
-              border: 0,
-              borderRadius: 10,
-              background:
-                loading ? "#94a3b8" : "#6d4aff",
-              color: "#fff",
-              fontWeight: "bold"
-            }}
-          >
-            {loading
-              ? "⏳ Membuat..."
-              : "✨ Generate"}
-          </button>
-        </section>
-
-        {result && (
-          <section
-            style={{
-              background: "#fff",
-              borderRadius: 18,
-              padding: 22,
-              marginTop: 20,
-              boxShadow: "0 4px 18px rgba(0,0,0,.06)"
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 10
-              }}
-            >
-              <h2 style={{ marginTop: 0 }}>
-                Hasil
-              </h2>
-
-              <button
-                onClick={copyResult}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 9,
-                  border: "1px solid #cbd5e1",
-                  background: "#fff"
-                }}
-              >
-                📋 Copy
-              </button>
             </div>
-
-            <div
-              style={{
-                whiteSpace: "pre-wrap",
-                lineHeight: 1.7
-              }}
-            >
-              {result}
+            <div className="hero-orbit" aria-hidden="true">
+              <div className="orbit-ring ring-one" />
+              <div className="orbit-ring ring-two" />
+              <div className="hero-spark">✦</div>
+              <div className="float-card card-one">📸<strong>AI Photo</strong><small>Photoshoot</small></div>
+              <div className="float-card card-two">✍️<strong>AI Content</strong><small>Caption & Copy</small></div>
+              <div className="float-card card-three">🎬<strong>AI Video</strong><small>Coming soon</small></div>
             </div>
           </section>
-        )}
 
-        <section
-          style={{
-            marginTop: 20,
-            padding: 24,
-            borderRadius: 18,
-            background:
-              "linear-gradient(135deg,#6d4aff,#9b7cff)",
-            color: "#fff"
-          }}
-        >
-          <h2 style={{ marginTop: 0 }}>
-            👑 GilangAI Premium
-          </h2>
+          <section className="lifetime-banner">
+            <div className="banner-icon">♛</div>
+            <div className="banner-copy"><strong>Gilang AI Lifetime</strong><span>Satu kali bayar. Akses platform selamanya. Tanpa subscription bulanan.</span></div>
+            <a href="/pricing" className="banner-btn">Lihat Lifetime →</a>
+          </section>
 
-          <p>
-            Akses fitur AI lebih lengkap dan produktivitas lebih tinggi.
-          </p>
+          <section className="section-block" id="tools">
+            <div className="section-heading"><div><span className="section-kicker">WORKSPACE</span><h2>AI Tools</h2><p>Pilih alat yang ingin kamu gunakan.</p></div><div className="category-tabs"><button className={activeCategory === "all" ? "tab active" : "tab"} onClick={() => setActiveCategory("all")}>Semua</button><button className={activeCategory === "content" ? "tab active" : "tab"} onClick={() => setActiveCategory("content")}>Content</button><button className={activeCategory === "photo" ? "tab active" : "tab"} onClick={() => setActiveCategory("photo")}>Photo</button><button className={activeCategory === "video" ? "tab active" : "tab"} onClick={() => setActiveCategory("video")}>Video</button></div></div>
 
- <button
-  onClick={() => {
-    window.location.href = "/pricing";
-  }}
-  style={{
-    padding: "11px 18px",
-    border: 0,
-    borderRadius: 10,
-    background: "#fff",
-    color: "#6d4aff",
-    fontWeight: "bold"
-  }}
->
-  Upgrade
-</button>
-        
-        </section>
+            <div className="tool-grid">
+              {visibleTools.map((item: string[]) => {
+                const isContent = contentTools.some((toolItem) => toolItem[0] === item[0]);
+                const status = item[4];
+                return (
+                  <button key={item[0]} className={`tool-card ${isContent && item[0] === tool[0] ? "selected" : ""}`} onClick={() => isContent ? selectContentTool(item[0]) : comingSoon(item[2])}>
+                    <div className="tool-card-top"><span className="tool-icon">{item[1]}</span>{status && <span className={`tool-status ${status === "Popular" ? "popular" : "soon"}`}>{status}</span>}</div>
+                    <strong>{item[2]}</strong><span>{item[3]}</span><div className="tool-arrow">→</div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
-        <footer
-          style={{
-            textAlign: "center",
-            padding: "28px 0",
-            color: "#64748b"
-          }}
-        >
-          © 2026 GilangAI Generator
-        </footer>
-      </div>
+          <section className="section-block generator-section" id="generator">
+            <div className="section-heading compact"><div><span className="section-kicker">AI CONTENT</span><h2>{tool[1]} {tool[2]}</h2><p>Gunakan generator yang sudah aktif dari project Gilang AI kamu.</p></div><span className="active-badge">● Aktif</span></div>
+            <div className="generator-card">
+              <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={`Contoh: buat ${String(tool[2]).toLowerCase()} untuk bisnis ayam geprek...`} rows={5} />
+              <div className="generator-footer"><span>💡 Semakin detail brief, semakin spesifik hasilnya.</span><button className="primary-btn" onClick={generate} disabled={loading}>{loading ? "⏳ Membuat..." : "✨ Generate"}</button></div>
+            </div>
+          </section>
+
+          {result && <section className="result-card"><div className="result-head"><div><span className="section-kicker">HASIL AI</span><h2>Hasil Generate</h2></div><button className="secondary-btn small" onClick={copyResult}>📋 Copy</button></div><div className="result-text">{result}</div></section>}
+
+          <section className="section-block" id="recent">
+            <div className="section-heading"><div><span className="section-kicker">WORKSPACE</span><h2>Kreasi Terbaru</h2><p>Hasil yang baru saja kamu buat.</p></div><a className="text-link" href="/history">Lihat semua →</a></div>
+            <div className="recent-grid">
+              {history.length > 0 ? history.map((item) => <a className="recent-card" key={item.id} href="/history"><div className="recent-art"><span>{item.generator === "caption" ? "✍️" : item.generator === "ideas" ? "💡" : item.generator === "hook" ? "🔥" : "✨"}</span></div><div className="recent-meta"><strong>{toolLabel(item.generator)}</strong><span>{new Date(item.created_at).toLocaleDateString("id-ID")}</span></div><p>{item.result.slice(0, 90)}{item.result.length > 90 ? "…" : ""}</p></a>) : <div className="empty-state"><div>✦</div><strong>Belum ada kreasi</strong><span>Mulai membuat konten dan hasilnya akan muncul di sini.</span></div>}
+            </div>
+          </section>
+
+          <section className="section-block" id="templates">
+            <div className="section-heading"><div><span className="section-kicker">COMING NEXT</span><h2>Ekosistem Gilang AI</h2><p>Dashboard ini sudah disiapkan untuk modul berikutnya.</p></div></div>
+            <div className="future-grid"><div><span>📸</span><strong>AI Photo Studio</strong><p>Photoshoot, product photo, background, portrait, upscale.</p><b>STEP 2</b></div><div><span>🎬</span><strong>AI Video Studio</strong><p>Image-to-video, talking photo, product video dan lainnya.</p><b>STEP 3</b></div><div><span>🧩</span><strong>Template Library</strong><p>Template siap pakai untuk UMKM, creator, dan marketer.</p><b>STEP 4</b></div></div>
+          </section>
+
+          <footer className="dashboard-footer"><strong>Gilang AI</strong><span>AI Creative Studio • 2026</span><span>Konten • Photo • Video</span></footer>
+        </div>
+      </section>
     </main>
   );
 }
