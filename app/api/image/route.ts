@@ -124,7 +124,7 @@ export async function POST(req: Request) {
 
         if (!quotaError) throw providerError;
 
-        console.warn("HF Inference Providers quota exhausted; falling back to ZeroGPU Space.");
+        console.warn("HF Inference Providers quota exhausted; falling back to ZeroGPU Space with low-step mode.");
 
         const gradio = await GradioClient.connect(HF_SPACE);
         const result = await gradio.predict("/infer", [
@@ -132,8 +132,8 @@ export async function POST(req: Request) {
           prompt,
           0,
           true,
-          4,
-          20,
+          1,
+          10,
           true
         ]);
 
