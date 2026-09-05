@@ -7,6 +7,8 @@ import { cookies } from "next/headers";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const BUCKET = "ai-creations";
+
 const styles: Record<string, string> = {
   "Studio Product": "professional commercial product photography, clean studio lighting, realistic premium ecommerce photography",
   Luxury: "luxury advertising photography, elegant premium styling, cinematic studio lighting, high-end commercial campaign",
@@ -24,21 +26,32 @@ const backgrounds: Record<string, string> = {
   Custom: "a visually appropriate premium commercial background"
 };
 
-export async function POST(req: Request) {
-  try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-      {
-        cookies: {
-          getAll() { return cookieStore.getAll(); },
-          setAll(cookiesToSet) {
-            try { cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)); } catch {}
-          }
+async function getSupabase() {
+  const cookieStore = await cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+          } catch {}
         }
       }
-    );
+    }
+  );
+}
+
+export async function POST(req: Request) {
+  let supabase: Awaited<ReturnType<typeof getSupabase>> | null = null;
+  let uploadedPath = "";
+
+  try {
+    supabase = await getSupabase();
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Silakan login terlebih dahulu." }, { status: 401 });
@@ -59,6 +72,7 @@ export async function POST(req: Request) {
 
     const provider = (process.env.IMAGE_PROVIDER || "huggingface").toLowerCase();
     let outputBytes: Buffer;
+    let outputContentType = "image/png";
 
     if (provider === "openai") {
       if (!process.env.OPENAI_API_KEY) {
@@ -94,22 +108,66 @@ export async function POST(req: Request) {
         }
       });
 
+      outputContentType = result.type || "image/png";
       outputBytes = Buffer.from(await result.arrayBuffer());
     }
 
-    const imageBase64 = outputBytes.toString("base64");
+    if (!outputBytes.length) {
+      return NextResponse.json({ error: "AI menghasilkan file gambar kosong." }, { status: 502 });
+    }
+
+    // Simpan hasil ke Supabase Storage pada folder milik user.
+    uploadedPath = `${user.id}/${Date.now()}-${crypto.randomUUID()}.png`;
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(uploadedPath, outputBytes, {
+        contentType: outputContentType,
+        cacheControl: "31536000",
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error("Storage upload error:", uploadError);
+      return NextResponse.json({
+        error: `Gambar berhasil dibuat, tetapi gagal disimpan ke Supabase Storage: ${uploadError.message}`
+      }, { status: 500 });
+    }
 
     const { data: remainingCredits, error: creditError } = await supabase.rpc("use_credit", { user_id: user.id });
     if (creditError) {
       console.error("Credit error:", creditError);
+      await supabase.storage.from(BUCKET).remove([uploadedPath]);
       return NextResponse.json({ error: "Gambar berhasil dibuat, tetapi kredit gagal diproses." }, { status: 500 });
     }
 
     const newCredits = Number(remainingCredits);
-    if (newCredits < 0) return NextResponse.json({ error: "Kredit kamu sudah habis. Silakan upgrade untuk mendapatkan kredit tambahan." }, { status: 403 });
+    if (newCredits < 0) {
+      await supabase.storage.from(BUCKET).remove([uploadedPath]);
+      return NextResponse.json({ error: "Kredit kamu sudah habis. Silakan upgrade untuk mendapatkan kredit tambahan." }, { status: 403 });
+    }
 
-    return NextResponse.json({ image: `data:image/png;base64,${imageBase64}`, credits: newCredits });
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(uploadedPath, 60 * 60 * 24);
+
+    if (signedError || !signedData?.signedUrl) {
+      console.error("Signed URL error:", signedError);
+      await supabase.storage.from(BUCKET).remove([uploadedPath]);
+      return NextResponse.json({ error: "Gambar tersimpan, tetapi URL hasil gagal dibuat." }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      image: signedData.signedUrl,
+      storagePath: uploadedPath,
+      credits: newCredits
+    });
   } catch (error: any) {
+    if (supabase && uploadedPath) {
+      try {
+        await supabase.storage.from(BUCKET).remove([uploadedPath]);
+      } catch {}
+    }
+
     console.error("GilangAI Image API Error:", error);
     const status = Number(error?.status || error?.response?.status || 500);
     const message = String(error?.message || "Gagal membuat gambar AI.");
