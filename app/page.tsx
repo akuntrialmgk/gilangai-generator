@@ -52,6 +52,13 @@ export default function Home() {
   const [userEmail, setUserEmail] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState("");
+  const [photoStyle, setPhotoStyle] = useState("Studio Product");
+  const [photoBackground, setPhotoBackground] = useState("Luxury Studio");
+  const [photoPrompt, setPhotoPrompt] = useState("");
+  const [photoResult, setPhotoResult] = useState("");
+  const [photoLoading, setPhotoLoading] = useState(false);
 
   const supabase = createClient();
 
@@ -166,7 +173,73 @@ export default function Home() {
   }
 
   function comingSoon(name: string) {
-    alert(`${name} akan kita aktifkan pada Step 2 setelah dashboard selesai.`);
+    alert(`${name} akan kita aktifkan pada tahap berikutnya.`);
+  }
+
+  function selectPhotoTool(id: string) {
+    if (id !== "photoshoot") {
+      comingSoon(toolLabel(id));
+      return;
+    }
+    setActiveCategory("photo");
+    setTimeout(() => document.getElementById("photo-studio")?.scrollIntoView({ behavior: "smooth" }), 50);
+  }
+
+  function handlePhotoFile(file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Silakan pilih file gambar JPG, PNG, WEBP, atau format gambar lainnya.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Ukuran foto maksimal 10 MB.");
+      return;
+    }
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    setPhotoResult("");
+  }
+
+  async function generatePhoto() {
+    if (!photoFile) {
+      alert("Upload foto produk terlebih dahulu.");
+      return;
+    }
+
+    setPhotoLoading(true);
+    setPhotoResult("");
+
+    try {
+      const formData = new FormData();
+      formData.append("image", photoFile);
+      formData.append("style", photoStyle);
+      formData.append("background", photoBackground);
+      formData.append("prompt", photoPrompt);
+
+      const response = await fetch("/api/image", { method: "POST", body: formData });
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || "Gagal membuat foto AI.");
+        return;
+      }
+
+      setPhotoResult(data.image || "");
+      if (typeof data.credits === "number") setCredits(data.credits);
+    } catch (error) {
+      console.error(error);
+      alert("Tidak dapat terhubung ke AI Image. Silakan coba lagi.");
+    } finally {
+      setPhotoLoading(false);
+    }
+  }
+
+  function downloadPhoto() {
+    if (!photoResult) return;
+    const link = document.createElement("a");
+    link.href = photoResult;
+    link.download = `gilang-ai-photoshoot-${Date.now()}.png`;
+    link.click();
   }
 
   function toolLabel(id: string) {
@@ -262,7 +335,7 @@ export default function Home() {
                 const isContent = contentTools.some((toolItem) => toolItem[0] === item[0]);
                 const status = item[4];
                 return (
-                  <button key={item[0]} className={`tool-card ${isContent && item[0] === tool[0] ? "selected" : ""}`} onClick={() => isContent ? selectContentTool(item[0]) : comingSoon(item[2])}>
+                  <button key={item[0]} className={`tool-card ${isContent && item[0] === tool[0] ? "selected" : ""}`} onClick={() => isContent ? selectContentTool(item[0]) : (activeCategory === "photo" ? selectPhotoTool(item[0]) : comingSoon(item[2]))}>
                     <div className="tool-card-top"><span className="tool-icon">{item[1]}</span>{status && <span className={`tool-status ${status === "Popular" ? "popular" : "soon"}`}>{status}</span>}</div>
                     <strong>{item[2]}</strong><span>{item[3]}</span><div className="tool-arrow">→</div>
                   </button>
@@ -271,15 +344,38 @@ export default function Home() {
             </div>
           </section>
 
-          <section className="section-block generator-section" id="generator">
-            <div className="section-heading compact"><div><span className="section-kicker">AI CONTENT</span><h2>{tool[1]} {tool[2]}</h2><p>Gunakan generator yang sudah aktif dari project Gilang AI kamu.</p></div><span className="active-badge">● Aktif</span></div>
-            <div className="generator-card">
-              <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={`Contoh: buat ${String(tool[2]).toLowerCase()} untuk bisnis ayam geprek...`} rows={5} />
-              <div className="generator-footer"><span>💡 Semakin detail brief, semakin spesifik hasilnya.</span><button className="primary-btn" onClick={generate} disabled={loading}>{loading ? "⏳ Membuat..." : "✨ Generate"}</button></div>
-            </div>
-          </section>
-
-          {result && <section className="result-card"><div className="result-head"><div><span className="section-kicker">HASIL AI</span><h2>Hasil Generate</h2></div><button className="secondary-btn small" onClick={copyResult}>📋 Copy</button></div><div className="result-text">{result}</div></section>}
+          {activeCategory === "photo" ? (
+            <section className="section-block photo-studio-section" id="photo-studio">
+              <div className="section-heading compact"><div><span className="section-kicker">AI PHOTO STUDIO</span><h2>📸 AI Photoshoot</h2><p>Ubah foto produk biasa menjadi foto profesional dengan AI.</p></div><span className="active-badge">● Aktif</span></div>
+              <div className="photo-workspace">
+                <div className="photo-controls">
+                  <label className="upload-zone">
+                    <input type="file" accept="image/*" onChange={(e) => handlePhotoFile(e.target.files?.[0])} />
+                    {photoPreview ? <img src={photoPreview} alt="Preview produk" /> : <><span className="upload-icon">☁️</span><strong>Upload foto produk</strong><small>JPG, PNG, WEBP • Maks. 10 MB</small></>}
+                  </label>
+                  <div className="photo-field"><label>Style Foto</label><div className="choice-grid">{["Studio Product","Luxury","Minimalist","Outdoor","Food Photography"].map((item) => <button type="button" key={item} className={photoStyle === item ? "choice active" : "choice"} onClick={() => setPhotoStyle(item)}>{item}</button>)}</div></div>
+                  <div className="photo-field"><label>Background</label><div className="choice-grid">{["Luxury Studio","White Studio","Marble","Cafe","Nature","Custom"].map((item) => <button type="button" key={item} className={photoBackground === item ? "choice active" : "choice"} onClick={() => setPhotoBackground(item)}>{item}</button>)}</div></div>
+                  <div className="photo-field"><label>Instruksi tambahan <span>(opsional)</span></label><textarea className="photo-prompt" value={photoPrompt} onChange={(e) => setPhotoPrompt(e.target.value)} placeholder="Contoh: letakkan produk di atas meja dengan pencahayaan hangat..." rows={3} /></div>
+                  <button className="primary-btn photo-generate-btn" onClick={generatePhoto} disabled={photoLoading}>{photoLoading ? "⏳ Sedang membuat foto..." : "✨ Generate AI Photoshoot"}</button>
+                  <small className="photo-note">1 generate menggunakan 1 credit pada versi awal.</small>
+                </div>
+                <div className="photo-result-panel">
+                  {photoResult ? <><div className="photo-result-image"><img src={photoResult} alt="Hasil AI Photoshoot" /></div><div className="photo-result-actions"><button className="secondary-btn small" onClick={downloadPhoto}>⬇️ Download</button><span>Hasil AI Photoshoot</span></div></> : <div className="photo-empty"><div>📸</div><strong>Hasil foto akan muncul di sini</strong><span>Upload produk lalu pilih style dan background.</span></div>}
+                </div>
+              </div>
+            </section>
+          ) : (
+            <>
+              <section className="section-block generator-section" id="generator">
+                <div className="section-heading compact"><div><span className="section-kicker">AI CONTENT</span><h2>{tool[1]} {tool[2]}</h2><p>Gunakan generator yang sudah aktif dari project Gilang AI kamu.</p></div><span className="active-badge">● Aktif</span></div>
+                <div className="generator-card">
+                  <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={`Contoh: buat ${String(tool[2]).toLowerCase()} untuk bisnis ayam geprek...`} rows={5} />
+                  <div className="generator-footer"><span>💡 Semakin detail brief, semakin spesifik hasilnya.</span><button className="primary-btn" onClick={generate} disabled={loading}>{loading ? "⏳ Membuat..." : "✨ Generate"}</button></div>
+                </div>
+              </section>
+              {result && <section className="result-card"><div className="result-head"><div><span className="section-kicker">HASIL AI</span><h2>Hasil Generate</h2></div><button className="secondary-btn small" onClick={copyResult}>📋 Copy</button></div><div className="result-text">{result}</div></section>}
+            </>
+          )}
 
           <section className="section-block" id="recent">
             <div className="section-heading"><div><span className="section-kicker">WORKSPACE</span><h2>Kreasi Terbaru</h2><p>Hasil yang baru saja kamu buat.</p></div><a className="text-link" href="/history">Lihat semua →</a></div>
